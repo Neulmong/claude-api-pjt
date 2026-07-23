@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>냉장고 이미지 인식 테스트 (PRD_01)</title>
+<style>
+  body { font-family: sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 1.3rem; }
+  #preview { max-width: 100%; max-height: 300px; margin-top: 12px; display: none; }
+  button { margin-top: 12px; padding: 8px 16px; cursor: pointer; }
+  #status { margin-top: 12px; color: #555; }
+  table { margin-top: 16px; border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; font-size: 0.9rem; }
+  th { background: #f2f2f2; }
+  #error { color: #c00; margin-top: 12px; }
+  hr { margin: 24px 0; }
+  .recipe-card { border: 1px solid #ccc; border-radius: 6px; padding: 12px; margin-top: 12px; }
+  .recipe-card h3 { margin: 0 0 8px; }
+  .recipe-card .missing { color: #b35c00; }
+  #recipeError { color: #c00; margin-top: 12px; }
+</style>
+</head>
+<body>
+  <h1>냉장고 이미지 인식 테스트 (PRD_01)</h1>
+  <p>냉장고 사진을 선택하고 "인식하기"를 누르면 인식된 식재료 목록을 확인할 수 있습니다.</p>
+
+  <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/avif">
+  <br>
+  <img id="preview" alt="preview">
+  <br>
+  <button id="submitBtn">인식하기</button>
+
+  <div id="status"></div>
+  <div id="error"></div>
+  <table id="resultTable" style="display:none;">
+    <thead><tr><th>재료명</th><th>카테고리</th><th>추정 수량</th></tr></thead>
+    <tbody id="resultBody"></tbody>
+  </table>
+
+  <hr id="recipeDivider" style="display:none;">
+  <div id="recipeSection" style="display:none;">
+    <h2 style="font-size:1.1rem;">레시피 추천 (PRD_02)</h2>
+    <button id="recipeBtn">이 재료로 레시피 추천받기</button>
+    <div id="recipeStatus"></div>
+    <div id="recipeError"></div>
+    <div id="recipeResults"></div>
+  </div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const preview = document.getElementById('preview');
+const submitBtn = document.getElementById('submitBtn');
+const statusEl = document.getElementById('status');
+const errorEl = document.getElementById('error');
+const resultTable = document.getElementById('resultTable');
+const resultBody = document.getElementById('resultBody');
+const recipeDivider = document.getElementById('recipeDivider');
+const recipeSection = document.getElementById('recipeSection');
+const recipeBtn = document.getElementById('recipeBtn');
+const recipeStatus = document.getElementById('recipeStatus');
+const recipeError = document.getElementById('recipeError');
+const recipeResults = document.getElementById('recipeResults');
+
+let recognizedItems = [];
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = 'block';
+});
+
+submitBtn.addEventListener('click', async () => {
+  const file = fileInput.files[0];
+  errorEl.textContent = '';
+  resultTable.style.display = 'none';
+  resultBody.innerHTML = '';
+
+  if (!file) {
+    errorEl.textContent = '이미지를 먼저 선택하세요.';
+    return;
+  }
+
+  statusEl.textContent = '인식 중... (모델 응답까지 최대 1분 정도 걸릴 수 있습니다)';
+  submitBtn.disabled = true;
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const res = await fetch('/api/vision/recognize', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!data.success) {
+      errorEl.textContent = data.error || '알 수 없는 오류가 발생했습니다.';
+      return;
+    }
+
+    recognizedItems = data.items;
+    data.items.forEach(item => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${item.name ?? ''}</td><td>${item.category ?? ''}</td><td>${item.estimatedQuantity ?? ''}</td>`;
+      resultBody.appendChild(tr);
+    });
+    resultTable.style.display = 'table';
+    recipeDivider.style.display = 'block';
+    recipeSection.style.display = 'block';
+    recipeResults.innerHTML = '';
+    recipeError.textContent = '';
+  } catch (err) {
+    errorEl.textContent = '서버 요청에 실패했습니다: ' + err.message;
+  } finally {
+    statusEl.textContent = '';
+    submitBtn.disabled = false;
+  }
+});
+
+recipeBtn.addEventListener('click', async () => {
+  recipeError.textContent = '';
+  recipeResults.innerHTML = '';
+
+  if (recognizedItems.length === 0) {
+    recipeError.textContent = '먼저 이미지를 인식하세요.';
+    return;
+  }
+
+  recipeStatus.textContent = '레시피 생성 중... (최대 1분 정도 걸릴 수 있습니다)';
+  recipeBtn.disabled = true;
+
+  try {
+    const res = await fetch('/api/recipes/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: recognizedItems }),
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      recipeError.textContent = data.error || '알 수 없는 오류가 발생했습니다.';
+      return;
+    }
+
+    data.recipes.forEach(recipe => {
+      const card = document.createElement('div');
+      card.className = 'recipe-card';
+      card.innerHTML = `
+        <h3>${recipe.title ?? ''}</h3>
+        <p>예상 조리 시간: ${recipe.estimatedCookTime ?? '-'}</p>
+        <p>사용 재료: ${(recipe.usedIngredients ?? []).join(', ')}</p>
+        <p class="missing">부족한 재료: ${(recipe.missingIngredients ?? []).join(', ') || '없음'}</p>
+        <ol>${(recipe.steps ?? []).map(step => `<li>${step}</li>`).join('')}</ol>
+      `;
+      recipeResults.appendChild(card);
+    });
+  } catch (err) {
+    recipeError.textContent = '서버 요청에 실패했습니다: ' + err.message;
+  } finally {
+    recipeStatus.textContent = '';
+    recipeBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
