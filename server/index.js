@@ -7,7 +7,19 @@ const { config, validateEnv } = require('./config');
 const visionRoutes = require('./routes/vision');
 const recipeRoutes = require('./routes/recipes');
 
-validateEnv();
+if (require.main === module) {
+  // Local `node server/index.js`: fail fast with a clear message.
+  validateEnv();
+} else {
+  // Serverless (Vercel): don't crash the whole function on every request.
+  // Routes that actually need the key already return a clean JSON 502
+  // when the OpenRouter call fails, so just warn here.
+  try {
+    validateEnv();
+  } catch (err) {
+    console.error('[startup]', err.message);
+  }
+}
 
 const app = express();
 
