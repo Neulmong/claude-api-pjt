@@ -32,6 +32,10 @@ app.use((err, req, res, next) => {
   return res.status(500).json({ success: false, error: '서버 오류가 발생했습니다.' });
 });
 
-app.listen(config.port, () => {
-  console.log(`Server listening on http://localhost:${config.port}`);
-});
+if (require.main === module) {
+  app.listen(config.port, () => {
+    console.log(`Server listening on http://localhost:${config.port}`);
+  });
+}
+
+module.exports = app;
