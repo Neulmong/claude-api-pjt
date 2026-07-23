@@ -2,26 +2,68 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>냉장고 이미지 인식 테스트 (PRD_01)</title>
+<title>냉장고 이미지 인식 테스트 (PRD_01~03)</title>
 <style>
-  body { font-family: sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+  html {
+    min-height: 100%;
+    background: #021b31;
+  }
+  body {
+    font-family: sans-serif;
+    max-width: 640px;
+    margin: 40px auto;
+    padding: 24px 16px;
+    min-height: calc(100vh - 80px);
+    color: #eaf6ff;
+    background:
+      radial-gradient(ellipse at 15% 0%, rgba(255,255,255,0.14), transparent 45%),
+      radial-gradient(ellipse at 85% 8%, rgba(255,255,255,0.08), transparent 40%),
+      repeating-linear-gradient(200deg, rgba(255,255,255,0.035) 0px, rgba(255,255,255,0.035) 2px, transparent 2px, transparent 60px),
+      repeating-linear-gradient(160deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 80px),
+      linear-gradient(180deg, #0f6d94 0%, #0a5478 20%, #06405f 45%, #043152 65%, #021f3d 85%, #011224 100%);
+    background-attachment: fixed;
+  }
   h1 { font-size: 1.3rem; }
+  h2 { font-size: 1.1rem; }
   #preview { max-width: 100%; max-height: 300px; margin-top: 12px; display: none; }
   button { margin-top: 12px; padding: 8px 16px; cursor: pointer; }
-  #status { margin-top: 12px; color: #555; }
+  #status { margin-top: 12px; color: #a9d6e8; }
   table { margin-top: 16px; border-collapse: collapse; width: 100%; }
   th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; font-size: 0.9rem; }
-  th { background: #f2f2f2; }
-  #error { color: #c00; margin-top: 12px; }
-  hr { margin: 24px 0; }
+  th { background: #f2f2f2; color: #222; }
+  #error { color: #ff8080; margin-top: 12px; }
+  hr { margin: 24px 0; border-color: rgba(255,255,255,0.25); }
   .recipe-card { border: 1px solid #ccc; border-radius: 6px; padding: 12px; margin-top: 12px; }
   .recipe-card h3 { margin: 0 0 8px; }
-  .recipe-card .missing { color: #b35c00; }
-  #recipeError { color: #c00; margin-top: 12px; }
+  .recipe-card .missing { color: #ffc27a; }
+  .recipe-card .actions { margin-top: 8px; }
+  #recipeError { color: #ff8080; margin-top: 12px; }
+  #profileSection { border: 1px solid #ddd; border-radius: 6px; padding: 12px; background: #fafafa; color: #222; }
+  #profileSection input { padding: 6px; margin-right: 6px; }
+  #profileError, #savedRecipesError { color: #ff8080; margin-top: 8px; }
+  .small-btn { padding: 4px 10px; font-size: 0.85rem; margin-top: 0; margin-left: 8px; }
 </style>
 </head>
 <body>
-  <h1>냉장고 이미지 인식 테스트 (PRD_01)</h1>
+  <h1>냉장고 이미지 인식 &amp; 레시피 저장</h1>
+
+  <section id="profileSection">
+    <h2>내 프로필 (PRD_03)</h2>
+    <div id="profileForm">
+      <p>이름과 이메일로 프로필을 생성하면 마음에 든 레시피를 저장할 수 있습니다.</p>
+      <input type="text" id="nameInput" placeholder="이름">
+      <input type="email" id="emailInput" placeholder="이메일">
+      <button id="createProfileBtn">프로필 생성</button>
+    </div>
+    <div id="profileInfo" style="display:none;">
+      <p>안녕하세요, <strong id="profileName"></strong>님 (<span id="profileEmail"></span>)</p>
+      <button id="logoutBtn" class="small-btn">다른 계정 사용</button>
+    </div>
+    <div id="profileError"></div>
+  </section>
+
+  <hr>
+
   <p>냉장고 사진을 선택하고 "인식하기"를 누르면 인식된 식재료 목록을 확인할 수 있습니다.</p>
 
   <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/avif">
@@ -39,11 +81,21 @@
 
   <hr id="recipeDivider" style="display:none;">
   <div id="recipeSection" style="display:none;">
-    <h2 style="font-size:1.1rem;">레시피 추천 (PRD_02)</h2>
+    <h2>레시피 추천 (PRD_02)</h2>
     <button id="recipeBtn">이 재료로 레시피 추천받기</button>
     <div id="recipeStatus"></div>
     <div id="recipeError"></div>
     <div id="recipeResults"></div>
+  </div>
+
+  <hr>
+
+  <div id="savedRecipesSection">
+    <h2>내 레시피 (PRD_03)</h2>
+    <button id="loadSavedBtn">내 레시피 목록 새로고침</button>
+    <div id="savedRecipesStatus"></div>
+    <div id="savedRecipesError"></div>
+    <div id="savedRecipesList"></div>
   </div>
 
 <script>
@@ -61,7 +113,98 @@ const recipeStatus = document.getElementById('recipeStatus');
 const recipeError = document.getElementById('recipeError');
 const recipeResults = document.getElementById('recipeResults');
 
+const profileForm = document.getElementById('profileForm');
+const profileInfo = document.getElementById('profileInfo');
+const profileName = document.getElementById('profileName');
+const profileEmail = document.getElementById('profileEmail');
+const profileError = document.getElementById('profileError');
+const nameInput = document.getElementById('nameInput');
+const emailInput = document.getElementById('emailInput');
+const createProfileBtn = document.getElementById('createProfileBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+
+const loadSavedBtn = document.getElementById('loadSavedBtn');
+const savedRecipesStatus = document.getElementById('savedRecipesStatus');
+const savedRecipesError = document.getElementById('savedRecipesError');
+const savedRecipesList = document.getElementById('savedRecipesList');
+
 let recognizedItems = [];
+let currentUser = null;
+
+const STORAGE_KEY = 'fridgeUser';
+
+function loadStoredUser() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function storeUser(user) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+}
+
+function clearStoredUser() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+function renderProfile() {
+  if (currentUser) {
+    profileForm.style.display = 'none';
+    profileInfo.style.display = 'block';
+    profileName.textContent = currentUser.name;
+    profileEmail.textContent = currentUser.email;
+    loadSavedRecipes();
+  } else {
+    profileForm.style.display = 'block';
+    profileInfo.style.display = 'none';
+    savedRecipesList.innerHTML = '';
+  }
+}
+
+createProfileBtn.addEventListener('click', async () => {
+  profileError.textContent = '';
+  const name = nameInput.value.trim();
+  const email = emailInput.value.trim();
+
+  if (!name || !email) {
+    profileError.textContent = '이름과 이메일을 모두 입력하세요.';
+    return;
+  }
+
+  createProfileBtn.disabled = true;
+  try {
+    const res = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email }),
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      profileError.textContent = data.error || '프로필을 생성할 수 없습니다.';
+      return;
+    }
+
+    currentUser = data.user;
+    storeUser(currentUser);
+    renderProfile();
+  } catch (err) {
+    profileError.textContent = '서버 요청에 실패했습니다: ' + err.message;
+  } finally {
+    createProfileBtn.disabled = false;
+  }
+});
+
+logoutBtn.addEventListener('click', () => {
+  clearStoredUser();
+  currentUser = null;
+  nameInput.value = '';
+  emailInput.value = '';
+  renderProfile();
+});
 
 fileInput.addEventListener('change', () => {
   const file = fileInput.files[0];
@@ -115,6 +258,8 @@ submitBtn.addEventListener('click', async () => {
   }
 });
 
+let lastGeneratedRecipes = [];
+
 recipeBtn.addEventListener('click', async () => {
   recipeError.textContent = '';
   recipeResults.innerHTML = '';
@@ -140,7 +285,8 @@ recipeBtn.addEventListener('click', async () => {
       return;
     }
 
-    data.recipes.forEach(recipe => {
+    lastGeneratedRecipes = data.recipes;
+    data.recipes.forEach((recipe, index) => {
       const card = document.createElement('div');
       card.className = 'recipe-card';
       card.innerHTML = `
@@ -149,6 +295,10 @@ recipeBtn.addEventListener('click', async () => {
         <p>사용 재료: ${(recipe.usedIngredients ?? []).join(', ')}</p>
         <p class="missing">부족한 재료: ${(recipe.missingIngredients ?? []).join(', ') || '없음'}</p>
         <ol>${(recipe.steps ?? []).map(step => `<li>${step}</li>`).join('')}</ol>
+        <div class="actions">
+          <button class="small-btn save-recipe-btn" data-index="${index}">저장</button>
+          <span class="save-status"></span>
+        </div>
       `;
       recipeResults.appendChild(card);
     });
@@ -159,6 +309,129 @@ recipeBtn.addEventListener('click', async () => {
     recipeBtn.disabled = false;
   }
 });
+
+recipeResults.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.save-recipe-btn');
+  if (!btn) return;
+
+  const statusSpan = btn.nextElementSibling;
+
+  if (!currentUser) {
+    statusSpan.textContent = '먼저 프로필을 생성하세요.';
+    return;
+  }
+
+  const recipe = lastGeneratedRecipes[Number(btn.dataset.index)];
+  if (!recipe) return;
+
+  btn.disabled = true;
+  statusSpan.textContent = '저장 중...';
+
+  try {
+    const res = await fetch(`/api/users/${currentUser.id}/recipes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: recipe.title,
+        usedIngredients: recipe.usedIngredients,
+        missingIngredients: recipe.missingIngredients,
+        estimatedCookTime: recipe.estimatedCookTime,
+        steps: recipe.steps,
+      }),
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      statusSpan.textContent = data.error || '저장 실패';
+      btn.disabled = false;
+      return;
+    }
+
+    statusSpan.textContent = '저장됨';
+    loadSavedRecipes();
+  } catch (err) {
+    statusSpan.textContent = '서버 요청 실패: ' + err.message;
+    btn.disabled = false;
+  }
+});
+
+function renderSavedRecipes(recipes) {
+  savedRecipesList.innerHTML = '';
+
+  if (recipes.length === 0) {
+    savedRecipesList.innerHTML = '<p>저장된 레시피가 없습니다.</p>';
+    return;
+  }
+
+  recipes.forEach(recipe => {
+    const card = document.createElement('div');
+    card.className = 'recipe-card';
+    card.innerHTML = `
+      <h3>${recipe.title ?? ''}</h3>
+      <p>예상 조리 시간: ${recipe.estimatedCookTime ?? '-'}</p>
+      <p>사용 재료: ${(recipe.usedIngredients ?? []).join(', ')}</p>
+      <p class="missing">부족한 재료: ${(recipe.missingIngredients ?? []).join(', ') || '없음'}</p>
+      <ol>${(recipe.steps ?? []).map(step => `<li>${step}</li>`).join('')}</ol>
+      <div class="actions">
+        <button class="small-btn delete-recipe-btn" data-id="${recipe.id}">삭제</button>
+      </div>
+    `;
+    savedRecipesList.appendChild(card);
+  });
+}
+
+async function loadSavedRecipes() {
+  if (!currentUser) return;
+
+  savedRecipesError.textContent = '';
+  savedRecipesStatus.textContent = '불러오는 중...';
+
+  try {
+    const res = await fetch(`/api/users/${currentUser.id}/recipes`);
+    const data = await res.json();
+
+    if (!data.success) {
+      savedRecipesError.textContent = data.error || '저장된 레시피를 불러올 수 없습니다.';
+      return;
+    }
+
+    renderSavedRecipes(data.recipes);
+  } catch (err) {
+    savedRecipesError.textContent = '서버 요청에 실패했습니다: ' + err.message;
+  } finally {
+    savedRecipesStatus.textContent = '';
+  }
+}
+
+loadSavedBtn.addEventListener('click', loadSavedRecipes);
+
+savedRecipesList.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.delete-recipe-btn');
+  if (!btn || !currentUser) return;
+
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`/api/users/${currentUser.id}/recipes/${btn.dataset.id}`, {
+      method: 'DELETE',
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      savedRecipesError.textContent = data.error || '삭제할 수 없습니다.';
+      btn.disabled = false;
+      return;
+    }
+
+    loadSavedRecipes();
+  } catch (err) {
+    savedRecipesError.textContent = '서버 요청에 실패했습니다: ' + err.message;
+    btn.disabled = false;
+  }
+});
+
+currentUser = loadStoredUser();
+renderProfile();
 </script>
 </body>
 </html>

@@ -6,6 +6,7 @@ const multer = require('multer');
 const { config, validateEnv } = require('./config');
 const visionRoutes = require('./routes/vision');
 const recipeRoutes = require('./routes/recipes');
+const userRoutes = require('./routes/users');
 
 if (require.main === module) {
   // Local `node server/index.js`: fail fast with a clear message.
@@ -29,6 +30,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.use('/api/vision', visionRoutes);
 app.use('/api/recipes', recipeRoutes);
+app.use('/api/users', userRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
